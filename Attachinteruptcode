@@ -1,0 +1,55 @@
+#include <AccelStepper.h> // AccelStepper library
+
+const byte limitSwitch_1 = 2; // Pin for the microswitch using attachInterrupt()
+
+volatile bool switchFlipped = false; // Stores the status for flipping
+volatile bool previousFlip = true;   // Stores the previous state for flipping - needed for the direction change
+
+// Direction Digital 9 (CCW), pulses Digital 8 (CLK)
+AccelStepper stepper(1, 8, 9);
+
+void setup()
+{
+  // Limit Switches
+  pinMode(limitSwitch_1, INPUT_PULLUP); // Internal pull-up resistor (debouncing)
+  
+  attachInterrupt(digitalPinToInterrupt(limitSwitch_1), FlipDirection, FALLING); // Trigger interrupt on falling edge
+  
+  Serial.begin(9600); // Defining some baud rate
+  Serial.println("Testing AccelStepper"); // Print a message
+  //---------------------------------------------------------------------------
+  
+  // Stepper parameters
+  stepper.setMaxSpeed(5000);        // Max speed = Steps / second
+  stepper.setAcceleration(1000);   // Acceleration = Steps / (second)^2    
+  stepper.setSpeed(1500);          // Initial speed
+}
+
+void loop()
+{
+  stepper.runSpeed(); // Step the motor (this will step the motor by 1 step at each loop indefinitely)
+  flipCheck();        // Check for a flip in each loop
+}
+
+void flipCheck()
+{
+  if (switchFlipped)
+  {    
+    if (previousFlip) // If the previous flip is 1, we have a positive direction
+    {    
+      stepper.setSpeed(1500);       
+    }
+    else // If the previous flip is 0, we have a negative direction
+    {  
+      stepper.setSpeed(-1500);
+    }
+    switchFlipped = false; 
+    // Reset so that the code will not enter this part until another click
+  }
+}
+
+void FlipDirection()
+{    
+  switchFlipped = true;       // Change the status to true
+  previousFlip = !previousFlip; // Toggle the direction state
+}

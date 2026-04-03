@@ -1,0 +1,64 @@
+#include <AccelStepper.h>
+
+// Define stepper motors
+AccelStepper motorX1(1, 3, 6); // Step, Dir for X1
+AccelStepper motorX2(1, 8, 9); // Step, Dir for X2 (synchronous with X1)
+
+// Steps per mm for motion (adjust as needed)
+const float stepsPerMM = 50;
+
+// Limit switch pin for X-axis
+const int limitSwitchX1 = 7; // Limit switch for X1
+
+void setup() {
+  Serial.begin(9600);
+
+  // Set maximum speed and acceleration for X motors
+  motorX1.setMaxSpeed(5000);  
+  motorX1.setAcceleration(1000); 
+  motorX2.setMaxSpeed(5000);
+  motorX2.setAcceleration(1000);
+
+  // Setup limit switch input
+  pinMode(limitSwitchX1, INPUT_PULLUP);
+
+  Serial.println("Gantry System Ready with Smooth Motion and X-Axis Limit Switch!");
+
+  // Move the gantry to a specific position
+  moveGantry(50, 0, 0); // Move X to 50mm
+  delay(2000); // Wait for 2 seconds
+
+  // Return to the initial position
+  moveGantry(0, 0, 0); // Move back to X=0
+  delay(2000); // Wait for 2 seconds
+
+  Serial.println("Motion Complete!");
+}
+
+// Function to move gantry synchronously and handle X-axis limit switch
+void moveGantry(float x, float y, float z) {
+  // Convert mm to steps
+  long stepsX = x * stepsPerMM;
+
+  // Set target positions for X motors
+  motorX1.moveTo(stepsX);
+  motorX2.moveTo(stepsX); // X2 moves synchronously with X1
+
+  // Run X motors until they reach their targets or the limit switch is triggered
+  while ((motorX1.distanceToGo() != 0 || motorX2.distanceToGo() != 0)) {
+    // Check for limit switch
+    if (digitalRead(limitSwitchX1) == HIGH) motorX1.setCurrentPosition(motorX1.currentPosition());
+    if (digitalRead(limitSwitchX1) == HIGH) motorX2.setCurrentPosition(motorX2.currentPosition());
+
+    // Run motors
+    motorX1.run();
+    motorX2.run();
+  }
+
+  Serial.print("Moved to X: ");
+  Serial.println(x);
+}
+
+void loop() {
+  // Intentionally left empty as no repeated actions are required.
+}

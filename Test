@@ -1,0 +1,149 @@
+#include <AccelStepper.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+// Define stepper motors
+AccelStepper motorX1(1, 3, 6); // Step, Dir for X1
+AccelStepper motorX2(1, 8, 9); // Step, Dir for X2 (synchronous with X1)
+AccelStepper motorY(1, 10, 11); // Step, Dir for Y
+AccelStepper motorZ(1, 12, 13); // Step, Dir for Z
+
+// Limit switches
+const byte xMinSwitch = 2, xMaxSwitch = 3;
+const byte yMinSwitch = 18, yMaxSwitch = 19;
+const byte zMinSwitch = 20, zMaxSwitch = 21;
+
+// Steps per mm for motion
+const float stepsPerMM = 50;
+
+// Flags for limit switch activation
+volatile bool xMinTriggered = false, xMaxTriggered = false;
+volatile bool yMinTriggered = false, yMaxTriggered = false;
+volatile bool zMinTriggered = false, zMaxTriggered = false;
+
+// Initialize LCD
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+void setup() {
+  Serial.begin(9600);
+
+  // Initialize LCD
+  lcd.init();
+  lcd.backlight();
+  lcd.print("Gantry System");
+  lcd.setCursor(0, 1);
+  lcd.print("Initializing...");
+  delay(2000);
+  lcd.clear();
+
+  // Configure motors
+  motorX1.setMaxSpeed(5000);
+  motorX1.setAcceleration(1000);
+  motorX2.setMaxSpeed(5000);
+  motorX2.setAcceleration(1000);
+  motorY.setMaxSpeed(3000);
+  motorY.setAcceleration(800);
+  motorZ.setMaxSpeed(2000);
+  motorZ.setAcceleration(500);
+
+  // Configure limit switches
+  pinMode(xMinSwitch, INPUT_PULLUP);
+  pinMode(xMaxSwitch, INPUT_PULLUP);
+  pinMode(yMinSwitch, INPUT_PULLUP);
+  pinMode(yMaxSwitch, INPUT_PULLUP);
+  pinMode(zMinSwitch, INPUT_PULLUP);
+  pinMode(zMaxSwitch, INPUT_PULLUP);
+
+  attachInterrupt(digitalPinToInterrupt(xMinSwitch), triggerXMin, FALLING);
+  attachInterrupt(digitalPinToInterrupt(xMaxSwitch), triggerXMax, FALLING);
+  attachInterrupt(digitalPinToInterrupt(yMinSwitch), triggerYMin, FALLING);
+  attachInterrupt(digitalPinToInterrupt(yMaxSwitch), triggerYMax, FALLING);
+  attachInterrupt(digitalPinToInterrupt(zMinSwitch), triggerZMin, FALLING);
+  attachInterrupt(digitalPinToInterrupt(zMaxSwitch), triggerZMax, FALLING);
+
+  lcd.print("System Ready!");
+  delay(2000);
+  lcd.clear();
+}
+
+void loop() {
+  // Move the gantry to a specific position
+  moveGantry(50, 50, -30); // Example target
+  delay(2000);
+
+  // Return to initial position
+  moveGantry(0, 0, 0);
+  delay(2000);
+}
+
+// Function to move the gantry
+void moveGantry(float x, float y, float z) {
+  long stepsX = x * stepsPerMM;
+  long stepsY = y * stepsPerMM;
+  long stepsZ = z * stepsPerMM;
+
+  motorX1.moveTo(stepsX);
+  motorX2.moveTo(stepsX);
+  motorY.moveTo(stepsY);
+  motorZ.moveTo(stepsZ);
+
+  while (motorX1.distanceToGo() != 0 || motorX2.distanceToGo() != 0 || 
+         motorY.distanceToGo() != 0 || motorZ.distanceToGo() != 0) {
+    if (!xMinTriggered && !xMaxTriggered) {
+      motorX1.run();
+      motorX2.run();
+    }
+    if (!yMinTriggered && !yMaxTriggered) motorY.run();
+    if (!zMinTriggered && !zMaxTriggered) motorZ.run();
+  }
+
+  lcd.clear();
+  lcd.print("Reached Pos:");
+  lcd.setCursor(0, 1);
+  lcd.print("X:");
+  lcd.print(x);
+  lcd.print(" Y:");
+  lcd.print(y);
+  lcd.print(" Z:");
+  lcd.print(z);
+
+  Serial.print("Moved to X: ");
+  Serial.print(x);
+  Serial.print(" Y: ");
+  Serial.print(y);
+  Serial.print(" Z: ");
+  Serial.println(z);
+}
+
+// Interrupt Service Routines
+void triggerXMin() {
+  xMinTriggered = true;
+  motorX1.setSpeed(1000); // Reverse direction
+  motorX2.setSpeed(1000);
+}
+
+void triggerXMax() {
+  xMaxTriggered = true;
+  motorX1.setSpeed(-1000);
+  motorX2.setSpeed(-1000);
+}
+
+void triggerYMin() {
+  yMinTriggered = true;
+  motorY.setSpeed(800); // Reverse direction
+}
+
+void triggerYMax() {
+  yMaxTriggered = true;
+  motorY.setSpeed(-800);
+}
+
+void triggerZMin() {
+  zMinTriggered = true;
+  motorZ.setSpeed(500); // Reverse direction
+}
+
+void triggerZMax() {
+  zMaxTriggered = true;
+  motorZ.setSpeed(-500);
+}

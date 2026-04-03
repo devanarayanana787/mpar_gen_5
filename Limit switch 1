@@ -1,0 +1,69 @@
+#include <AccelStepper.h>
+
+// Define the stepper motor
+AccelStepper motor(1, 3, 6); // Step, Dir
+
+// Define the limit switch pin
+#define LIMIT_SWITCH 4
+
+// Steps per mm for motion (adjust as needed)
+const float stepsPerMM = 50;
+
+void setup() {
+  Serial.begin(9600);
+
+  // Configure the motor
+  motor.setMaxSpeed(1000);  // Maximum speed (steps per second)
+  motor.setAcceleration(500); // Smooth acceleration
+
+  // Configure the limit switch
+  pinMode(LIMIT_SWITCH, INPUT_PULLUP); // NC configuration
+
+  // Perform homing
+  Serial.println("Starting Homing...");
+  homeMotor();
+  Serial.println("Homing Complete!");
+
+  // Test movement
+  moveMotor(100); // Move to 100mm
+  delay(2000);    // Wait for 2 seconds
+  moveMotor(0);   // Return to 0mm
+}
+
+void loop() {
+  // Empty for now
+}
+
+// Function to home the motor
+void homeMotor() {
+  motor.setSpeed(-500); // Move towards the limit switch
+
+  // Keep moving until the limit switch is triggered
+  while (digitalRead(LIMIT_SWITCH) == LOW) {
+    motor.runSpeed();
+  }
+
+  // Stop the motor, back off slightly, and set home position
+  motor.setCurrentPosition(0);
+  motor.setSpeed(500); // Move away from the switch
+  motor.move(10); // Back off by 10 steps
+  while (motor.distanceToGo() != 0) {
+    motor.run();
+  }
+  motor.setCurrentPosition(0); // Set home position
+}
+
+// Function to move the motor to a specific position (in mm)
+void moveMotor(float positionMM) {
+  long steps = positionMM * stepsPerMM; // Convert mm to steps
+  motor.moveTo(steps);                  // Set target position
+
+  // Move the motor until it reaches the target
+  while (motor.distanceToGo() != 0) {
+    motor.run();
+  }
+
+  Serial.print("Moved to: ");
+  Serial.print(positionMM);
+  Serial.println(" mm");
+}
